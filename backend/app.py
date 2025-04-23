@@ -72,9 +72,9 @@ def process_automl():
         if training_data.shape[0] < 10:
             return jsonify({'error': 'Training data must have at least 10 samples'}), 400
         
-        # Preprocess data
-        X_train, y_train, target_column, problem_type = preprocess_data(training_data)
-        X_test = preprocess_data(prediction_data, is_training=False, target_column=target_column)
+        # Preprocess data - now including encoders
+        X_train, y_train, target_column, problem_type, encoders = preprocess_data(training_data)
+        X_test = preprocess_data(prediction_data, is_training=False, target_column=target_column, encoders=encoders)
         
         # Feature engineering
         X_train, X_test = engineer_features(X_train, X_test, problem_type)
@@ -89,9 +89,24 @@ def process_automl():
         # Make predictions
         predictions = model.predict(X_test)
         
-        # Save predictions to file
+        # Save original prediction data for output
         prediction_output = prediction_data.copy()
-        prediction_output['prediction'] = predictions
+        
+        # Decode predictions if needed for classification problems
+        if problem_type == 'classification':
+            # Store mapping for decoding if available
+            target = training_data[target_column]
+            if target.dtype == 'object' or target.dtype == 'category':
+                unique_values = training_data[target_column].unique()
+                # Map numeric predictions back to original categories
+                prediction_labels = [unique_values[int(p)] if int(p) < len(unique_values) else p for p in predictions]
+                prediction_output['prediction'] = prediction_labels
+            else:
+                prediction_output['prediction'] = predictions
+        else:
+            prediction_output['prediction'] = predictions
+        
+        # Save predictions to file
         output_file = os.path.join(session_folder, 'predictions.csv')
         prediction_output.to_csv(output_file, index=False)
         
@@ -104,13 +119,19 @@ def process_automl():
         feature_importance = {}
         if hasattr(model, 'get_feature_importance'):
             feature_importance = model.get_feature_importance()
+            
+            # Ensure feature importance is properly normalized
+            if feature_importance:
+                total = sum(feature_importance.values())
+                if total > 0:  # Avoid division by zero
+                    feature_importance = {k: v/total for k, v in feature_importance.items()}
         
         # Return result
         return jsonify({
             'model_type': model_type,
             'metrics': metrics,
             'feature_importance': feature_importance,
-            'download_url': f'/download/{session_id}/predictions',  # Remove /api/ prefix
+            'download_url': f'/api/download/{session_id}/predictions',  # Added /api/ prefix
             'problem_type': problem_type
         })
         
@@ -122,19 +143,35 @@ def process_automl():
 def download_predictions(session_id):
     """Endpoint to download prediction results as CSV."""
     file_path = os.path.join(app.config['UPLOAD_FOLDER'], session_id, 'predictions.csv')
+    print(f"Attempting to download file at: {file_path}")
+    
     if os.path.exists(file_path):
-        response = send_file(
-            file_path, 
-            mimetype='text/csv', 
-            as_attachment=True, 
-            download_name='predictions.csv'
-        )
-        # Add CORS headers to the response
-        response.headers.add('Access-Control-Allow-Origin', '*')
-        response.headers.add('Access-Control-Allow-Headers', 'Content-Type')
-        response.headers.add('Access-Control-Allow-Methods', 'GET')
-        return response
+        print(f"File exists, sending...")
+        try:
+            response = send_file(
+                file_path, 
+                mimetype='text/csv', 
+                as_attachment=True, 
+                download_name='predictions.csv'
+            )
+            # Add CORS headers to the response
+            response.headers.add('Access-Control-Allow-Origin', '*')
+            response.headers.add('Access-Control-Allow-Headers', 'Content-Type')
+            response.headers.add('Access-Control-Allow-Methods', 'GET')
+            return response
+        except Exception as e:
+            print(f"Error sending file: {str(e)}")
+            return jsonify({'error': f'Error sending file: {str(e)}'}), 500
     else:
+        print(f"File not found at {file_path}")
+        # List files in the session directory to debug
+        session_dir = os.path.join(app.config['UPLOAD_FOLDER'], session_id)
+        if os.path.exists(session_dir):
+            files = os.listdir(session_dir)
+            print(f"Files in session directory: {files}")
+        else:
+            print(f"Session directory does not exist: {session_dir}")
+        
         return jsonify({'error': 'File not found'}), 404
 
 if __name__ == '__main__':

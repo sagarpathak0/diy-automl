@@ -68,17 +68,16 @@ class LinearRegression(BaseModel):
         if not self.is_fitted:
             raise Exception("Model is not fitted yet.")
         
-        # Normalize to get relative importance
+        # Use absolute weights as importance
         abs_weights = np.abs(self.weights)
-        total = np.sum(abs_weights)
-        
-        if total == 0:  # Avoid division by zero
-            importances = np.ones_like(abs_weights) / len(abs_weights)
-        else:
-            importances = abs_weights / total
         
         # Create a dictionary mapping feature names to importance
         if self.feature_names:
-            return {name: float(importance) for name, importance in zip(self.feature_names, importances)}
+            raw_importances = {name: float(importance) for name, importance in 
+                             zip(self.feature_names, abs_weights)}
         else:
-            return {f"feature_{i}": float(importance) for i, importance in enumerate(importances)}
+            raw_importances = {f"feature_{i}": float(importance) for i, importance in 
+                             enumerate(abs_weights)}
+        
+        # Use the base class method to normalize the importances
+        return self.normalize_feature_importance(raw_importances)

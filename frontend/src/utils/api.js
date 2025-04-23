@@ -31,7 +31,7 @@ export const downloadPredictions = async (url) => {
       // If it's already a full URL, use it as is
       downloadUrl = url;
     } else if (url.startsWith('/api/')) {
-      // If it starts with /api/, replace it with the base URL
+      // If it starts with /api/, add only the base hostname
       downloadUrl = `http://localhost:5000${url}`;
     } else {
       // Otherwise append to API_BASE_URL
@@ -70,6 +70,6 @@ export const downloadPredictions = async (url) => {
     return true
   } catch (error) {
     console.error('Download error:', error)
-    throw new Error('Failed to download predictions: ' + error.message)
+    throw error;  // Re-throw the error so it can be handled by the caller
   }
 }
