@@ -86,6 +86,16 @@ def process_automl():
         model = create_model(model_type)
         model.fit(X_train, y_train)
         
+        # Save the trained model
+        model_info = {
+            'problem_type': problem_type,
+            'target_column': target_column,
+            'training_samples': X_train.shape[0],
+            'features': X_train.shape[1],
+            'created_at': time.strftime('%Y-%m-%d %H:%M:%S')
+        }
+        model_paths = model.save_model(os.path.join(session_folder, 'model'), model_info)
+        
         # Make predictions
         predictions = model.predict(X_test)
         
@@ -131,7 +141,8 @@ def process_automl():
             'model_type': model_type,
             'metrics': metrics,
             'feature_importance': feature_importance,
-            'download_url': f'/api/download/{session_id}/predictions',  # Added /api/ prefix
+            'download_url': f'/api/download/{session_id}/predictions',
+            'model_download_url': f'/api/download/{session_id}/model',
             'problem_type': problem_type
         })
         
@@ -173,6 +184,67 @@ def download_predictions(session_id):
             print(f"Session directory does not exist: {session_dir}")
         
         return jsonify({'error': 'File not found'}), 404
+
+@app.route('/api/download/<session_id>/model', methods=['GET'])
+def download_model(session_id):
+    """Endpoint to download the trained model."""
+    model_path = os.path.join(app.config['UPLOAD_FOLDER'], session_id, 'model', 'model.pkl')
+    
+    if os.path.exists(model_path):
+        # Create a ZIP file containing the model and model_info
+        import zipfile
+        import io
+        
+        # Create a memory file for the ZIP
+        memory_file = io.BytesIO()
+        
+        # Create a ZIP file
+        with zipfile.ZipFile(memory_file, 'w', zipfile.ZIP_DEFLATED) as zipf:
+            # Add model file
+            zipf.write(model_path, arcname='model.pkl')
+            
+            # Add model info if it exists
+            info_path = os.path.join(app.config['UPLOAD_FOLDER'], session_id, 'model', 'model_info.json')
+            if os.path.exists(info_path):
+                zipf.write(info_path, arcname='model_info.json')
+            
+            # Add a README file
+            readme_content = f"""DIY AutoML Trained Model
+===========================
+
+This ZIP archive contains a trained machine learning model created with DIY AutoML.
+
+Files:
+- model.pkl: The serialized model file (use pickle.load() to load it)
+- model_info.json: Metadata about the model
+
+Example usage in Python:
+```python
+import pickle
+
+# Load the model
+with open('model.pkl', 'rb') as f:
+    model = pickle.load(f)
+
+# Make predictions (your data should have the same features as training data)
+import pandas as pd
+data = pd.read_csv('your_data.csv')
+predictions = model.predict(data)
+```
+
+"""
+            zipf.writestr('README.txt', readme_content)
+        
+        memory_file.seek(0)
+        
+        return send_file(
+            memory_file,
+            mimetype='application/zip',
+            as_attachment=True,
+            download_name='model.zip'
+        )
+    else:
+        return jsonify({'error': 'Model file not found'}), 404
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)

@@ -73,3 +73,55 @@ export const downloadPredictions = async (url) => {
     throw error;  // Re-throw the error so it can be handled by the caller
   }
 }
+
+export const downloadModel = async (url) => {
+  try {
+    // Fix URL construction to avoid duplicate /api/ in the path
+    let downloadUrl;
+    
+    if (url.startsWith('http')) {
+      // If it's already a full URL, use it as is
+      downloadUrl = url;
+    } else if (url.startsWith('/api/')) {
+      // If it starts with /api/, add only the base hostname
+      downloadUrl = `http://localhost:5000${url}`;
+    } else {
+      // Otherwise append to API_BASE_URL
+      downloadUrl = `${API_BASE_URL}${url}`;
+    }
+    
+    console.log('Downloading model from URL:', downloadUrl);
+    
+    const response = await axios.get(downloadUrl, {
+      responseType: 'blob'
+    })
+    
+    // Create a blob from the response data
+    const blob = new Blob([response.data], { type: 'application/zip' })
+    
+    // Create a temporary URL for the blob
+    const blobUrl = window.URL.createObjectURL(blob)
+    
+    // Create a temporary link element
+    const link = document.createElement('a')
+    link.href = blobUrl
+    link.setAttribute('download', 'diy_automl_model.zip')
+    
+    // Append the link to the body
+    document.body.appendChild(link)
+    
+    // Click the link to start the download
+    link.click()
+    
+    // Clean up
+    setTimeout(() => {
+      document.body.removeChild(link)
+      window.URL.revokeObjectURL(blobUrl)
+    }, 100)
+    
+    return true
+  } catch (error) {
+    console.error('Model download error:', error)
+    throw error;
+  }
+}

@@ -1,9 +1,10 @@
 import { useState } from 'react'
-import { downloadPredictions } from '../utils/api'
+import { downloadPredictions, downloadModel } from '../utils/api'
 
 export default function ModelResult({ results }) {
   const [activeTab, setActiveTab] = useState('overview')
   const [downloading, setDownloading] = useState(false)
+  const [downloadingModel, setDownloadingModel] = useState(false)
   
   const handleDownload = async () => {
     setDownloading(true)
@@ -13,6 +14,17 @@ export default function ModelResult({ results }) {
       alert('Failed to download predictions: ' + error.message)
     } finally {
       setDownloading(false)
+    }
+  }
+  
+  const handleModelDownload = async () => {
+    setDownloadingModel(true)
+    try {
+      await downloadModel(results.model_download_url)
+    } catch (error) {
+      alert('Failed to download model: ' + error.message)
+    } finally {
+      setDownloadingModel(false)
     }
   }
 
@@ -62,7 +74,7 @@ export default function ModelResult({ results }) {
       <div className="space-y-6">
         {activeTab === 'overview' && (
           <div className="space-y-4">
-            <div className="flex justify-between bg-green-500 p-4 rounded-md">
+            <div className="flex justify-between bg-black p-4 rounded-md">
               <span className="font-medium">Selected Model:</span>
               <span className="text-primary font-semibold">{results.model_type}</span>
             </div>
@@ -71,11 +83,11 @@ export default function ModelResult({ results }) {
               Based on the characteristics of your data, we've selected the best model for your use case.
             </p>
             
-            <div className="mt-6">
+            <div className="mt-6 flex flex-col sm:flex-row gap-3">
               <button
                 onClick={handleDownload}
                 disabled={downloading}
-                className="btn btn-primary inline-flex items-center text-black px-3 cursor-pointer bg-primary border-2 border-black py-3 rounded-md font-semibold hover:bg-black hover:text-white transition duration-300 ease-in-out"
+                className="btn btn-primary inline-flex items-center font-bold justify-center text-black hover:bg-green-600 hover:text-white px-2 py-3 rounded border-2 cursor-pointer border-black"
               >
                 {downloading ? (
                   <span className="inline-flex items-center">
@@ -91,6 +103,29 @@ export default function ModelResult({ results }) {
                       <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
                     </svg>
                     Download Predictions
+                  </>
+                )}
+              </button>
+              
+              <button
+                onClick={handleModelDownload}
+                disabled={downloadingModel}
+                className="btn btn-primary inline-flex items-center font-bold justify-center text-black hover:bg-green-600 hover:text-white px-2 py-3 rounded border-2 cursor-pointer border-black"
+              >
+                {downloadingModel ? (
+                  <span className="inline-flex items-center">
+                    <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Downloading...
+                  </span>
+                ) : (
+                  <>
+                    <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                      <path d="M10 2a4 4 0 00-4 4v2H5a2 2 0 00-2 2v8a2 2 0 002 2h10a2 2 0 002-2v-8a2 2 0 00-2-2h-1V6a4 4 0 00-4-4zm3 8H7v-2a3 3 0 016 0v2z" clipRule="evenodd" />
+                    </svg>
+                    Download Model
                   </>
                 )}
               </button>
